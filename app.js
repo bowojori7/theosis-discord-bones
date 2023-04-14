@@ -59,13 +59,11 @@ app.post("/interactions", async function (req, res) {
     if (name === "genesis" && id) {
       const userName = req.body.member.user.username;
       // Send a message into the channel where command was triggered from
-      const userId = req.body.member.user.id;
+
       // User's object choice
 
       // Create active game using message ID as the game ID
-      activeGames[id] = {
-        id: userId,
-      };
+
       return res.send({
         type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
         data: {
@@ -90,45 +88,10 @@ app.post("/interactions", async function (req, res) {
         },
       });
     }
-    if (name === "challenge" && id) {
-      const userId = req.body.member.user.id;
-      // User's object choice
-      const objectName = req.body.data.options[0].value;
-
-      // Create active game using message ID as the game ID
-      activeGames[id] = {
-        id: userId,
-        objectName,
-      };
-
-      return res.send({
-        type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-        data: {
-          // Fetches a random emoji to send from a helper function
-          content: `Rock papers scissors challenge from <@${userId}>`,
-          components: [
-            {
-              type: MessageComponentTypes.ACTION_ROW,
-              components: [
-                {
-                  type: MessageComponentTypes.BUTTON,
-                  // Append the game ID to use later on
-                  custom_id: `accept_button_${req.body.id}`,
-                  label: "Accept",
-                  style: ButtonStyleTypes.PRIMARY,
-                },
-              ],
-            },
-          ],
-        },
-      });
-    }
   }
   if (type === InteractionType.MESSAGE_COMPONENT) {
     // custom_id set in payload when sending message component
     const componentId = data.custom_id;
-
-    console.log("in the button baby");
     if (componentId.startsWith("enter_button_")) {
       const gameId = componentId.replace("enter_button_", "");
       // Delete message with token in request body
@@ -154,6 +117,36 @@ app.post("/interactions", async function (req, res) {
                 ],
               },
             ],
+          },
+        });
+        await DiscordRequest(endpoint, { method: "DELETE" });
+      } catch (err) {
+        console.error("Error sending message:", err);
+      }
+    }
+  }
+  if (type === InteractionType.MESSAGE_COMPONENT) {
+    const userId = req.body.member.user.id;
+    const userName = req.body.member.user.username;
+    console.log(data);
+    // custom_id set in payload when sending message component
+    const componentId = data.custom_id;
+    activeGames[id] = {
+      id: userId,
+    };
+    if (componentId.startsWith("select_choice_")) {
+      const selectedPower = data.values[0];
+      const gameId = componentId.replace("select_choice_", "");
+      // Delete message with token in request body
+      const endpoint = `webhooks/${process.env.APP_ID}/${req.body.token}/messages/${req.body.message.id}`;
+      try {
+        await res.send({
+          type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+          data: {
+            // Fetches a random emoji to send from a helper function
+            content: `Good choice Acolyte ${userName}, you selected ${selectedPower}.\nYour starting HP is 1 and PP is 1 as you begin your journey.\nWelcome to Theosis.`,
+            // Indicates it'll be an ephemeral message
+            flags: InteractionResponseFlags.EPHEMERAL,
           },
         });
         await DiscordRequest(endpoint, { method: "DELETE" });
