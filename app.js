@@ -23,6 +23,7 @@ app.use(express.json({ verify: VerifyDiscordRequest(process.env.PUBLIC_KEY) }));
 
 // Store for in-progress games. In production, you'd want to use a DB
 const activeGames = {};
+const readyAcolytes = [];
 
 /**
  * Interactions endpoint URL where Discord will send HTTP requests
@@ -46,47 +47,100 @@ app.post("/interactions", async function (req, res) {
     const { name } = data;
 
     // "test" command
-    if (name === "fight") {
+    if (name === "fight" && id) {
+      const userName = req.body.member.user.username;
+      const userId = req.body.member.user.id;
       // Send a message into the channel where command was triggered from
-      return res.send({
-        type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-        data: {
-          // Fetches a random emoji to send from a helper function
-          content: "Welcome to the Theoverse " + getRandomEmoji(),
-        },
-      });
+      if (readyAcolytes.some((readyAcolyte) => readyAcolyte.id === userId)) {
+        const foundAcolyte = readyAcolytes.find(
+          (readyAcolyte) => readyAcolyte.id === userId
+        );
+        // Create active game using message ID as the game ID
+        activeGames[id] = {
+          player1: foundAcolyte,
+        };
+        console.log(activeGames[id]);
+        return res.send({
+          type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+          data: {
+            // Fetches a random emoji to send from a helper function
+            content: `<${userName}> asks if anybody dares to face them in the arena`,
+            components: [
+              {
+                type: MessageComponentTypes.ACTION_ROW,
+                components: [
+                  {
+                    type: MessageComponentTypes.BUTTON,
+                    // Append the game ID to use later on
+                    custom_id: `accept_button_${req.body.id}`,
+                    label: "Accept Challenge",
+                    style: ButtonStyleTypes.PRIMARY,
+                  },
+                ],
+              },
+            ],
+          },
+        });
+      } else {
+        return res.send({
+          type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+          data: {
+            // Fetches a random emoji to send from a helper function
+            content: `You do not have the blood of theos flowing through you yet unnamed one.\n Go to the genesis before you try step into the arena.`,
+          },
+        });
+      }
     }
     if (name === "genesis" && id) {
       const userName = req.body.member.user.username;
+      const userId = req.body.member.user.id;
       // Send a message into the channel where command was triggered from
 
       // User's object choice
 
       // Create active game using message ID as the game ID
-
-      return res.send({
-        type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-        data: {
-          // Fetches a random emoji to send from a helper function
-          content: `Greetings Acolyte, we'll call you ${userName}.
-          \n${userName}, The Ecclesia has allowed you to pick your starting power - choose wisely.
-          \nBut first, do you dare to enter the Theoverse ?`,
-          components: [
-            {
-              type: MessageComponentTypes.ACTION_ROW,
-              components: [
-                {
-                  type: MessageComponentTypes.BUTTON,
-                  // Append the game ID to use later on
-                  custom_id: `enter_button_${req.body.id}`,
-                  label: "Enter",
-                  style: ButtonStyleTypes.PRIMARY,
-                },
-              ],
-            },
-          ],
-        },
-      });
+      if (readyAcolytes.some((readyAcolyte) => readyAcolyte.id === userId)) {
+        const foundAcolyte = readyAcolytes.find(
+          (readyAcolyte) => readyAcolyte.id === userId
+        );
+        return res.send({
+          type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+          data: {
+            // Fetches a random emoji to send from a helper function
+            content: `Greetings ${userName},
+            \nIt seems you've been past here before, the acolyte with the ${foundAcolyte.power}, yes ?
+            \nGo into the Arena and battle for glory.`,
+            // Indicates it'll be an ephemeral message
+            flags: InteractionResponseFlags.EPHEMERAL,
+          },
+        });
+      } else {
+        return res.send({
+          type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+          data: {
+            // Fetches a random emoji to send from a helper function
+            content: `Greetings Acolyte, we'll call you ${userName}.
+    \n${userName}, The Ecclesia has allowed you to pick your starting power - choose wisely.
+    \nBut first, do you dare to enter the Theoverse ?`,
+            // Indicates it'll be an ephemeral message
+            flags: InteractionResponseFlags.EPHEMERAL,
+            components: [
+              {
+                type: MessageComponentTypes.ACTION_ROW,
+                components: [
+                  {
+                    type: MessageComponentTypes.BUTTON,
+                    // Append the game ID to use later on
+                    custom_id: `enter_button_${req.body.id}`,
+                    label: "Enter",
+                    style: ButtonStyleTypes.PRIMARY,
+                  },
+                ],
+              },
+            ],
+          },
+        });
+      }
     }
   }
   if (type === InteractionType.MESSAGE_COMPONENT) {
@@ -128,7 +182,6 @@ app.post("/interactions", async function (req, res) {
   if (type === InteractionType.MESSAGE_COMPONENT) {
     const userId = req.body.member.user.id;
     const userName = req.body.member.user.username;
-    console.log(data);
     // custom_id set in payload when sending message component
     const componentId = data.custom_id;
     activeGames[id] = {
@@ -136,6 +189,14 @@ app.post("/interactions", async function (req, res) {
     };
     if (componentId.startsWith("select_choice_")) {
       const selectedPower = data.values[0];
+      let newAcolyte = {
+        id: userId,
+        name: userName,
+        hp: 1,
+        pp: 1,
+        power: selectedPower,
+      };
+      readyAcolytes.push(newAcolyte);
       const gameId = componentId.replace("select_choice_", "");
       // Delete message with token in request body
       const endpoint = `webhooks/${process.env.APP_ID}/${req.body.token}/messages/${req.body.message.id}`;
