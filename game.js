@@ -90,7 +90,7 @@ const POWERS = {
   "Weapon Creation": {
     description: "Lil Uzi ? Nah, you rock with all weapons",
   },
-  Regeneration: {
+  "Self-Regeneration Manipulation": {
     description: "Not the type of healing from an ex. physical injuries only",
   },
   Teleportation: {
