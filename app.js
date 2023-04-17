@@ -29,7 +29,7 @@ const readyAcolytes = [];
 /**
  * Interactions endpoint URL where Discord will send HTTP requests
  */
-app.post("/interactions", async function (req, res) {
+app.post("/interactions", async function(req, res) {
   // Interaction type and data
   const { type, id, data } = req.body;
 
@@ -65,7 +65,7 @@ app.post("/interactions", async function (req, res) {
           type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
           data: {
             // Fetches a random emoji to send from a helper function
-            content: `<${userName}> asks if anybody dares to face them in the arena`,
+            content: `<${userName}> bestowed with the gift of ${foundAcolyte.power} asks if anybody dares to face them in the arena`,
             components: [
               {
                 type: MessageComponentTypes.ACTION_ROW,
@@ -424,7 +424,7 @@ app.post("/interactions", async function (req, res) {
     }
   }
 
-  /////////////////CONCLUDE BATTLE
+ /////////////////CONCLUDE BATTLE
   if (type === InteractionType.MESSAGE_COMPONENT) {
     // custom_id set in payload when sending message component
     const componentId = data.custom_id;
@@ -434,7 +434,8 @@ app.post("/interactions", async function (req, res) {
       const gameId = componentId.replace("conclude_battle_", "");
       const userId = req.body.member.user.id;
       const userName = req.body.member.user.username;
-
+      let round;
+      let roundDone = false;
       let gameDetails = {
         Acolytes: [
           {
@@ -445,7 +446,7 @@ app.post("/interactions", async function (req, res) {
                 PowerLevel: 1,
               },
             ],
-            HP: 100,
+            HP: 1,
             Actions: [
               {
                 Round: 1,
@@ -461,7 +462,7 @@ app.post("/interactions", async function (req, res) {
                 PowerLevel: 1,
               },
             ],
-            HP: 100,
+            HP: 1,
             Actions: [
               {
                 Round: 1,
@@ -473,7 +474,45 @@ app.post("/interactions", async function (req, res) {
         Environment: "clear day, moderate temparature, no wind, dry terrain",
         CurrentRound: 1,
       };
-      const getFinale = async (gamedetails) => {
+      const getFinale = async (roundData) => {
+        let gamedetails = {
+          Acolytes: [
+            {
+              Name: activeGames[gameId]["player1"].name,
+              Powers: [
+                {
+                  Name: activeGames[gameId]["player1"].power,
+                  PowerLevel: 1,
+                },
+              ],
+              HP: roundData.hp["1"],
+              Actions: [
+                {
+                  Round: 1,
+                  Action: activeGames[gameId]["player1move"],
+                },
+              ],
+            },
+            {
+              Name: activeGames[gameId]["player2"].name,
+              Powers: [
+                {
+                  Name: activeGames[gameId]["player2"].power,
+                  PowerLevel: 1,
+                },
+              ],
+              HP: roundData.hp["2"],
+              Actions: [
+                {
+                  Round: 1,
+                  Action: activeGames[gameId]["player2move"],
+                },
+              ],
+            },
+          ],
+          Environment: "clear day, moderate temparature, no wind, dry terrain",
+          CurrentRound: 1,
+        };
         let res = await axios.post(
           "https://aetherarbiter.bowojori7.repl.co/finale",
           gamedetails
@@ -490,9 +529,28 @@ app.post("/interactions", async function (req, res) {
 
         return res.data;
       };
+      const getRound = async (gamedetails) => {
+        let res = await axios.post(
+          "https://aetherarbiter.bowojori7.repl.co/round",
+          gamedetails
+        );
+        console.log(res.data);
+        let body = {
+          content: res.data.message,
+        };
+        const endpoint = `webhooks/${process.env.APP_ID}/${req.body.token}`;
+        await DiscordRequest(endpoint, {
+          method: "POST",
+          body,
+        });
+        if (res.data) {
+          getFinale(res.data);
+        }
+        return res.data;
+      };
 
       if (readyAcolytes.some((readyAcolyte) => readyAcolyte.id === userId)) {
-        getFinale(gameDetails);
+        getRound(gameDetails);
         res.send({
           type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
           data: {
@@ -509,7 +567,6 @@ app.post("/interactions", async function (req, res) {
       }
     }
   }
-
   ///////HANDLE MODAL INTERACTIONS
   if (type === InteractionType.MODAL_SUBMIT) {
     const componentId = data.custom_id;
@@ -525,7 +582,7 @@ app.post("/interactions", async function (req, res) {
         res.send({
           type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
           data: {
-            content: `${activeGames[gameId]["player1"].name} has made their move, are you ready ${activeGames[gameId]["player2"].name}?`,
+            content: `Acolyte ${activeGames[gameId]["player1"].name} move: ${activeGames[gameId]["player1move"]}\n\n${activeGames[gameId]["player1"].name} has made their move, are you ready ${activeGames[gameId]["player2"].name}?`,
             components: [
               {
                 type: 1,
@@ -560,7 +617,7 @@ app.post("/interactions", async function (req, res) {
         res.send({
           type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
           data: {
-            content: `Both players have mae their move, the arbiter ponders.`,
+            content: `Acolyte ${activeGames[gameId]["player2"].name} move: ${activeGames[gameId]["player2move"]}\n\nBoth players have made their move, the arbiter ponders...`,
             components: [
               {
                 type: 1,

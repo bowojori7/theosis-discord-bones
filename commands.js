@@ -58,4 +58,4 @@ const ALL_COMMANDS = [
   GENESIS_COMMAND,
 ];
 
-InstallGlobalCommands(process.env.APP_ID, ALL_COMMANDS);
+InstallGlobalCommands(process.env['APP_ID'], ALL_COMMANDS);
